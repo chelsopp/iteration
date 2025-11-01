@@ -1,0 +1,164 @@
+---
+title: "Writing Functions"
+output: github_document
+date: "2025-10-23"
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(rvest)
+```
+
+## Start Small
+
+everyone loves z scores...
+note `(x_vec - mean(x_vec)) / sd(x_vec)` this is z transformation
+```{r}
+x_vec = rnorm(20, mean = 10, sd = 3.5)
+
+(x_vec - mean(x_vec)) / sd(x_vec)
+```
+
+write aka define a function to compute z scores
+note: `!is.numeric(x)` means "not numeric"
+```{r}
+z_scores = function(x) {
+  
+if(!is.numeric(x)) {
+  stop("the input x shoud be numeric")
+}
+  
+if(length(x) < 5) {
+  stop("only compute z scores when the input has 5 or more numbers")
+}
+  
+z = (x - mean(x)) / sd(x) 
+  
+z 
+
+}
+```
+
+let's try our function
+```{r}
+z_scores(x = x_vec)
+
+num_vec = rnorm(123, mean = 14, sd = 0.4)
+
+z_scores(x = num_vec)
+```
+
+
+let's break our function
+```{r, error = TRUE}
+z_scores(3)
+z_scores("my name is jeff")
+```
+
+## Let's comput some stuff
+
+Let's compute and return the mean and sd of a numeric vector
+
+```{r}
+mean_and_sd = function(x) {
+  
+ if(!is.numeric(x)) {
+  stop("the input x shoud be numeric")
+}
+  
+if(length(x) < 5) {
+  stop("only compute mean and sd when the input has 5 or more numbers") 
+}
+
+mean_x = mean(x, na.rm = TRUE)
+sd_x = sd(x, na.rm = TRUE)
+
+tibble(
+  mean = mean_x,
+  sd = sd_x
+)
+
+}
+
+mean_and_sd(x_vec)
+```
+
+## make up data...
+
+Let's *simulate* some data
+```{r}
+sim_df =
+  tibble(
+    x = rnorm(n = 30, mean = 3, sd = 2)
+  )
+
+sim_df %>% 
+  summarize(
+    mu_hat = mean(x),
+    sigma_hat = sd(x)
+  )
+```
+
+write a function to do simulations
+
+the inputs are
+*`n_subj` is number of subjects
+*`mu` is the true mean
+*`signma` is the true sd
+
+function simulates data from a normal and computes sample mean sand sd.
+(we wrote this in a code check last time...now I put the function in a R script and placed it in a source folder)
+```{r}
+source("source/sim_mean_sd.R")
+```
+
+Let's run this function
+```{r}
+sim_mean_sd()
+
+sim_mean_sd(50)
+
+sim_mean_sd(mu = 48, 50)
+```
+
+
+import LotR dataset
+```{r}
+fellowship_ring = 
+  read_excel("data/LotR_Words.xlsx", range = "B3:D6") %>% 
+  mutate(movie = "Fellowship of the Ring")
+
+two_towers = 
+  read_excel("data/LotR_Words.xlsx", range = "F3:H6") %>% 
+  mutate(movie = "Two Towers")
+
+return_of_king = 
+  read_excel("data/LotR_Words.xlsx", range = "j3:L6") %>% 
+  mutate(movie = "Return of the King")
+
+lotr_df = 
+  bind_rows(fellowship_ring, two_towers, return_of_king)
+```
+
+import LotR dataset...with a function
+note: in your function parenthesis, is what you are changing, then in the next lines you write what you want to do originally substituting places with what is within your function parenthesis
+```{r}
+lotr_import= function(cell_range, movie_title) {
+  
+  df = 
+    read_excel("data/LotR_Words.xlsx", range = cell_range) %>% 
+    mutate(movie = movie_title)
+  
+  df
+  
+}
+
+fellowship = lotr_import(cell_range = "B3:D6", movie_title = "Fellowship")
+two_towers = lotr_import(cell_range = "F3:H6", movie_title = "Two Towers")
+return_of_king = lotr_import(cell_range = "j3:L6", movie_title = "Return")
+
+bind_rows(fellowship, two_towers, return_of_king)
+
+```
+
