@@ -1,0 +1,273 @@
+---
+title: "Iterations and listcols"
+output: github_document
+date: "2025-10-28"
+---
+
+```{r}
+library(tidyverse)
+library(rvest)
+```
+
+note: `l[1]` means first item in your list
+```{r}
+l = 
+  list(
+    vec_numeric = 1:23,
+    char_vec = c("chelsey"),
+    mat = matrix(1:8, nrow = 2, ncol = 4),
+    summary = summary(rnorm(1000, mean = 4))
+  )
+
+ l
+
+l[1]
+
+l[["vec_numeric"]]
+
+```
+
+## Make a different list
+```{r}
+list_normals = 
+  list(
+    a = rnorm(30, mean = 3, sd = 1),
+    b = rnorm(30, mean = 30, sd = 1),
+    c = rnorm(30, mean = 3, sd = 10),
+    d = rnorm(30, mean = -3, sd = 4)
+  )
+```
+
+(copy and paste the function from last time)
+```{r}
+mean_and_sd = function(x) {
+  
+ if(!is.numeric(x)) {
+  stop("the input x shoud be numeric")
+}
+  
+if(length(x) < 5) {
+  stop("only compute mean and sd when the input has 5 or more numbers") 
+}
+
+mean_x = mean(x, na.rm = TRUE)
+sd_x = sd(x, na.rm = TRUE)
+
+tibble(
+  mean = mean_x,
+  sd = sd_x
+)
+
+}
+```
+
+```{r}
+mean_and_sd(list_normals[[1]])
+mean_and_sd(list_normals[[2]])
+mean_and_sd(list_normals[[3]])
+mean_and_sd(list_normals[[4]])
+```
+
+use a for loop to iterate!
+```{r}
+output = vector("list", length = 4)
+
+for (i in 1:4) {
+  
+  output[[i]] = mean_and_sd(list_normals[[i]])
+}
+
+output
+```
+
+use `map` to do the same thing!
+`list_normals` = this is the input we are iterating each time and we are using this = `mean_and_sd` as the function
+```{r}
+output = map(list_normals, mean_and_sd)
+
+output
+```
+
+check out some `map` variants
+note: `map_dfr` collapses output into dataframe
+note: `.id` names all your output
+note: `map_dbl(list_normals, median)` gives you the median of your outputs in one line
+```{r}
+map_dfr(list_normals, mean_and_sd, .id = "sample")
+
+map_dbl(list_normals, median)
+```
+
+## List columns
+
+try to put my list into a dataframe bc they have the same length
+```{r}
+listcol_df = 
+  tibble(
+    name = c("a", "b", "c", "d"),
+    sample = list_normals
+  )
+```
+
+did this really work?
+```{r}
+pull(listcol_df, sample)
+pull(listcol_df, name)
+```
+
+can I apply `mean_and_sd`?
+```{r}
+mean_and_sd(pull(listcol_df, sample)[[1]])
+mean_and_sd(pull(listcol_df, sample)[[2]])
+mean_and_sd(pull(listcol_df, sample)[[3]])
+mean_and_sd(pull(listcol_df, sample)[[4]])
+```
+
+iterate using `map`
+```{r}
+map(pull(listcol_df, sample), mean_and_sd)
+```
+
+adding a column...
+```{r}
+listcol_df = 
+  listcol_df %>% 
+  mutate(
+    summary = map(sample, mean_and_sd)
+  )
+
+```
+
+note: `unnest` means to expand table
+```{r}
+listcol_df %>% 
+  select(-sample) %>% 
+  unnest(summary)
+```
+
+## Revist NSDUH
+
+```{r}
+nsduh_url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
+
+nsduh_html = read_html(nsduh_url)
+
+nsduh_import = function(html, table_num) {
+
+data =
+  html %>% 
+  html_table() |> 
+  nth(table_num) |>
+  slice(-1) |> 
+  select(-contains("P Value")) |>
+  pivot_longer(
+    -State,
+    names_to = "age_year", 
+    values_to = "percent") |>
+  separate(age_year, into = c("age", "year"), sep = "\\(") |>
+  mutate(
+    year = str_replace(year, "\\)", ""),
+    percent = str_replace(percent, "[a-c]$", ""),
+    percent = as.numeric(percent)) |>
+  filter(!(State %in% c("Total U.S.", "Northeast", "Midwest", "South", "West")))
+
+data
+
+}
+
+nsduh_import(nsduh_html, table_num = 1)
+nsduh_import(nsduh_html, table_num = 2)
+nsduh_import(nsduh_html, table_num = 3)
+
+```
+
+try this with for loop
+```{r}
+output = vector("list", length = 3)
+
+for (i in 1:3) {
+  
+  output[[1]] = nsduh_import(html = nsduh_html, i)
+}
+```
+
+do this with map
+```{r}
+map(1:3, nsduh_import, html = nsduh_html)
+```
+
+do this all in a dataframe
+```{r}
+nsduh_df = 
+  tibble(
+    name = c("marj year", "marj month", "marj first"),
+    number = 1:3
+  ) %>% 
+  mutate(
+    table = map(number, nsduh_import, html = nsduh_html)
+  ) %>% 
+  unnest(table)
+```
+
+## look at weather data
+
+```{r}
+library(p8105.datasets)
+data("weather_df")
+```
+
+```{r}
+weather_df %>% 
+  filter(name == "CentralPark_NY") %>% 
+  ggplot(aes(x = tmin, y = tmax)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+let's do a regression
+```{r}
+weather_df %>% 
+  filter(name == "CentralPark_NY") %>% 
+  lm(tmax ~ tmin, data = _)
+
+weather_df %>% 
+  filter(name == "Molokai_HI") %>% 
+  lm(tmax ~ tmin, data = _)
+
+weather_df %>% 
+  filter(name == "Waterhole_WA") %>% 
+  lm(tmax ~ tmin, data = _)
+```
+
+let's iterate differently
+```{r}
+weather_nest_df = weather_df %>% 
+  nest(data = date:tmin)
+```
+
+```{r}
+lm(tmax ~ tmin, data = pull(weather_nest_df, data)[[1]])
+lm(tmax ~ tmin, data = pull(weather_nest_df, data)[[2]])
+lm(tmax ~ tmin, data = pull(weather_nest_df, data)[[3]])
+```
+
+do this using map
+```{r}
+weather_lm = function(df) {
+  
+  lm(tmax ~ tmin, data = df)
+}
+```
+
+```{r}
+map(pull(weather_nest_df, data), weather_lm)
+```
+
+
+```{r}
+weather_nest_df %>% 
+  mutate(
+    lm_fits = map(data, weather_lm)
+  )
+```
+
